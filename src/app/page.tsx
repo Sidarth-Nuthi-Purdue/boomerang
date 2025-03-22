@@ -16,8 +16,8 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
 /** 
  * Generate a smooth cubic Bezier path through all points in order. 
