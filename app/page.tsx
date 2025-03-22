@@ -323,6 +323,7 @@ function AddEventModal({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 9999,
+        overflow: 'auto',
       }}
     >
       <div
