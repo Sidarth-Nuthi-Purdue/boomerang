@@ -17,11 +17,14 @@ export default function PillNavBar() {
         boxShadow: '0 0px 10px rgb(220 220 220 / 30%)', // Add box shadow
       }}
     >
-      <Link href="/" className="hover:text-white transition">
-        Home
+      <Link href="/" className="hover:text-white transition flex items-center gap-1">
+        <span>🏠</span> Home
       </Link>
-      <Link href="/boomerang" className="hover:text-white transition">
-        Boomerang
+      <Link href="/map" className="hover:text-white transition flex items-center gap-1">
+        <span>🗺️</span> Map
+      </Link>
+      <Link href="/boomerang" className="hover:text-white transition flex items-center gap-1">
+        <span>🪃</span> Boomerang
       </Link>
     </nav>
   );
