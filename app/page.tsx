@@ -1,8 +1,9 @@
 'use client';
 import { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { initializeApp } from 'firebase/app';
-import { query, orderBy, getFirestore, addDoc, Timestamp, collection, getDocs } from 'firebase/firestore';
+import { query, orderBy, getFirestore, addDoc, Timestamp, collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, getStorage } from 'firebase/storage';
+import Link from 'next/link';
 
 // TODO: Replace with your own Firebase config object
 const firebaseConfig = {
@@ -129,20 +130,13 @@ function EventCard({
 }
 
 /**
- * Expanded Modal 
+ * Fullscreen Image Modal
  */
-function ExpandedModal({
-  event,
+function FullscreenImage({
+  imageUrl,
   onClose,
 }: {
-  event: {
-    id: string;
-    image: string;
-    title: string;
-    description: string;
-    date: string;
-    relatedImages: string[];
-  };
+  imageUrl: string;
   onClose: () => void;
 }) {
   return (
@@ -154,70 +148,270 @@ function ExpandedModal({
         left: 0,
         width: '100vw',
         height: '100vh',
-        background: 'rgba(0,0,0,0.7)',
+        background: 'rgba(0,0,0,0.9)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 9999,
-        overflow: 'auto',
+        zIndex: 10000,
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
+      <button
+        onClick={onClose}
         style={{
-          width: '80%',
-          maxWidth: '600px',
-          backgroundColor: 'rgb(10,10,10)',
-          boxShadow: '0 0px 15px rgba(155, 155, 155, 0.2)',
-          borderRadius: '8px',
-          padding: '20px',
-          position: 'relative',
+          position: 'absolute',
+          top: '20px',
+          right: '20px',
+          fontSize: '1.5rem',
+          cursor: 'pointer',
+          background: 'none',
+          border: 'none',
+          color: '#fff',
+          padding: '8px',
+          borderRadius: '4px',
+          backgroundColor: 'rgba(0,0,0,0.3)',
+          zIndex: 10001,
         }}
       >
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            fontSize: '1.2rem',
-            cursor: 'pointer',
-          }}
-        >
-          ✕
-        </button>
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <img
-            src={event.image}
-            alt={event.title}
-            style={{ maxWidth: '100%', borderRadius: '6px' }}
-          />
-        </div>
-        <h2 style={{ marginTop: 0 }}>{event.title}</h2>
-        <p style={{ color: '#666', marginBottom: '10px' }}>{event.date}</p>
-        <p>{event.description}</p>
-        {event.relatedImages?.length > 0 && (
-          <div style={{ marginTop: '20px' }}>
-            <h4>Related Images:</h4>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {event.relatedImages.map((imgUrl, idx) => (
-                <img
-                  key={idx}
-                  src={imgUrl}
-                  alt="Related"
-                  style={{ width: '100px', borderRadius: '4px' }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+        ✕
+      </button>
+      <img
+        src={imageUrl}
+        alt="Fullscreen"
+        style={{
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+          objectFit: 'contain',
+        }}
+      />
     </div>
   );
 }
 
+/**
+ * Expanded Modal 
+ */
+function ExpandedModal({
+  event,
+  onClose,
+  onEdit,
+}: {
+  event: {
+    id: string;
+    image: string;
+    title: string;
+    description: string;
+    date: string;
+    relatedImages: string[];
+  };
+  onClose: () => void;
+  onEdit: (event: any) => void;
+}) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const allImages = [event.image, ...event.relatedImages];
 
-/** 
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+  };
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          overflowY: 'auto',
+          padding: '20px',
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: '80%',
+            maxWidth: '600px',
+            backgroundColor: 'rgb(10,10,10)',
+            boxShadow: '0 0px 15px rgba(155, 155, 155, 0.2)',
+            borderRadius: '8px',
+            padding: '20px',
+            position: 'relative',
+            margin: '20px auto',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: '400px',
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              fontSize: '1.2rem',
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none',
+              color: '#fff',
+              padding: '8px',
+              borderRadius: '4px',
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              zIndex: 10000,
+            }}
+          >
+            ✕
+          </button>
+
+          {/* Image Slideshow */}
+          <div style={{ position: 'relative', marginBottom: '20px' }}>
+            <div 
+              style={{ 
+                textAlign: 'center', 
+                marginBottom: '20px', 
+                marginTop: '20px',
+                cursor: 'pointer',
+              }}
+              onClick={() => setIsFullscreen(true)}
+            >
+              <img
+                src={allImages[currentImageIndex]}
+                alt={`${event.title} - Image ${currentImageIndex + 1}`}
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '400px',
+                  objectFit: 'contain',
+                  borderRadius: '6px',
+                  backgroundColor: '#000',
+                }}
+              />
+            </div>
+
+            {/* Navigation Buttons */}
+            {allImages.length > 1 && (
+              <>
+                <button
+                  onClick={prevImage}
+                  style={{
+                    position: 'absolute',
+                    left: '20px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(0,0,0,0.5)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '40px',
+                    height: '40px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.2rem',
+                    zIndex: 10000,
+                  }}
+                >
+                  ‹
+                </button>
+                <button
+                  onClick={nextImage}
+                  style={{
+                    position: 'absolute',
+                    right: '20px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(0,0,0,0.5)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '40px',
+                    height: '40px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.2rem',
+                    zIndex: 10000,
+                  }}
+                >
+                  ›
+                </button>
+              </>
+            )}
+
+            {/* Image Counter */}
+            {allImages.length > 1 && (
+              <div style={{
+                position: 'absolute',
+                bottom: '10px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                padding: '5px 10px',
+                borderRadius: '15px',
+                fontSize: '0.9rem',
+                zIndex: 10000,
+              }}>
+                {currentImageIndex + 1} / {allImages.length}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h2 style={{ margin: 0 }}>{event.title}</h2>
+          </div>
+          <p style={{ color: '#666', marginBottom: '10px' }}>{event.date}</p>
+          <p style={{ flex: 1, marginBottom: '20px' }}>{event.description}</p>
+          
+          {/* Edit button at the bottom */}
+          <div style={{ marginTop: 'auto', paddingTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => onEdit(event)}
+              style={{
+                fontSize: '1rem',
+                cursor: 'pointer',
+                background: '#2196F3',
+                border: 'none',
+                color: '#fff',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1976D2'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2196F3'}
+            >
+              <span>✎</span> Edit Event
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Fullscreen Image Modal */}
+      {isFullscreen && (
+        <FullscreenImage
+          imageUrl={allImages[currentImageIndex]}
+          onClose={() => setIsFullscreen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+/**
  * NEW: A simple "Add Event" modal with a small form
  */
 function AddEventModal({
@@ -237,75 +431,86 @@ function AddEventModal({
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [image, setImage] = useState('');
-  const [relatedImages, setRelatedImages] = useState('');
-
-  // -- DRAG & DROP STATES --
+  const [relatedImages, setRelatedImages] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingRelated, setIsDraggingRelated] = useState(false);
 
-  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    if (isRelated) {
+      setIsDraggingRelated(true);
+    } else {
+      setIsDragging(true);
+    }
   }
-  function handleDragEnter(e: React.DragEvent<HTMLDivElement>) {
+
+  function handleDragEnter(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    if (isRelated) {
+      setIsDraggingRelated(true);
+    } else {
+      setIsDragging(true);
+    }
   }
-  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    if (isRelated) {
+      setIsDraggingRelated(false);
+    } else {
+      setIsDragging(false);
+    }
   }
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    if (isRelated) {
+      setIsDraggingRelated(false);
+    } else {
+      setIsDragging(false);
+    }
 
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
 
-    // Create a storage ref, e.g. "images/<fileName>"
-    const storageRef = ref(storage, `images/${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    for (const file of files) {
+      const storageRef = ref(storage, `images/${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        // Optionally track progress
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log('Upload is ' + progress + '% done');
-      },
-      (error) => {
-        console.error('Upload error:', error);
-      },
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-          console.log('File available at', downloadURL);
-          // Set the "image" state to the download link
-          setImage(downloadURL);
-        });
-      }
-    );
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log('Upload is ' + progress + '% done');
+        },
+        (error) => {
+          console.error('Upload error:', error);
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          if (isRelated) {
+            setRelatedImages(prev => [...prev, downloadURL]);
+          } else {
+            setImage(downloadURL);
+          }
+        }
+      );
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    const relArr = relatedImages
-      .split(',')
-      .map((img) => img.trim())
-      .filter(Boolean);
-
     await onAdd({
       title,
       description,
       date,
-      image, // we use image state, possibly from drag-drop
-      relatedImages: relArr,
+      image,
+      relatedImages,
     });
-
     onClose();
   }
 
@@ -323,7 +528,8 @@ function AddEventModal({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 9999,
-        overflow: 'auto',
+        overflowY: 'auto',
+        padding: '20px',
       }}
     >
       <div
@@ -336,6 +542,7 @@ function AddEventModal({
           padding: '20px',
           position: 'relative',
           boxShadow: '0 0px 15px rgba(155, 155, 155, 0.2)',
+          margin: '20px auto',
         }}
       >
         <button
@@ -346,40 +553,18 @@ function AddEventModal({
             right: '10px',
             fontSize: '1.2rem',
             cursor: 'pointer',
+            background: 'none',
+            border: 'none',
+            color: '#fff',
+            padding: '8px',
+            borderRadius: '4px',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            zIndex: 10000,
           }}
         >
           ✕
         </button>
-        <h2>Add New Event</h2>
-
-        {/* DRAG & DROP ZONE */}
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          style={{
-            marginBottom: '10px',
-            border: '2px dashed #999',
-            borderRadius: '8px',
-            padding: '20px',
-            textAlign: 'center',
-            backgroundColor: isDragging ? '#eee' : '#fafafa',
-            color: '#333',
-          }}
-        >
-          {isDragging ? (
-            <p>Drop the image here ...</p>
-          ) : (
-            <p>Drag & drop an image here, or continue below</p>
-          )}
-          {image && (
-            <p style={{ marginTop: '10px', color: 'green' }}>
-              Currently using uploaded image: <br />
-              <small>{image}</small>
-            </p>
-          )}
-        </div>
+        <h2 style={{ marginTop: '20px' }}>Add New Event</h2>
 
         <form onSubmit={handleSubmit}>
           <label style={{ display: 'block', marginBottom: '8px' }}>
@@ -414,26 +599,128 @@ function AddEventModal({
             />
           </label>
 
-          {/* You can remove this if you only want drag & drop */}
-          <label style={{ display: 'block', marginBottom: '8px' }}>
-            Image URL (optional):
-            <input
-              style={{ width: '100%', marginTop: '4px' }}
-              type="text"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-            />
-          </label>
+          {/* Main Image Upload */}
+          <div
+            onDrop={(e) => handleDrop(e, false)}
+            onDragOver={(e) => handleDragOver(e, false)}
+            onDragEnter={(e) => handleDragEnter(e, false)}
+            onDragLeave={(e) => handleDragLeave(e, false)}
+            style={{
+              marginBottom: '10px',
+              border: '2px dashed #999',
+              borderRadius: '8px',
+              padding: '20px',
+              textAlign: 'center',
+              backgroundColor: isDragging ? '#eee' : '#fafafa',
+              color: '#333',
+            }}
+          >
+            {isDragging ? (
+              <p>Drop the image here ...</p>
+            ) : (
+              <p>Drag & drop main image here</p>
+            )}
+            {image && (
+              <div style={{ marginTop: '10px' }}>
+                <p style={{ color: 'green' }}>Main image uploaded:</p>
+                <div style={{ position: 'relative', display: 'inline-block', marginTop: '10px' }}>
+                  <img
+                    src={image}
+                    alt="Main"
+                    style={{ 
+                      maxWidth: '200px', 
+                      maxHeight: '200px', 
+                      objectFit: 'cover', 
+                      borderRadius: '4px',
+                      display: 'block',
+                      margin: '0 auto'
+                    }}
+                  />
+                  <button
+                    onClick={() => setImage('')}
+                    style={{
+                      position: 'absolute',
+                      top: '-8px',
+                      right: '-8px',
+                      background: 'red',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-          {/* <label style={{ display: 'block', marginBottom: '8px' }}>
-            Related Images (comma separated):
-            <input
-              style={{ width: '100%', marginTop: '4px' }}
-              type="text"
-              value={relatedImages}
-              onChange={(e) => setRelatedImages(e.target.value)}
-            />
-          </label> */}
+          {/* Related Images Upload */}
+          <div
+            onDrop={(e) => handleDrop(e, true)}
+            onDragOver={(e) => handleDragOver(e, true)}
+            onDragEnter={(e) => handleDragEnter(e, true)}
+            onDragLeave={(e) => handleDragLeave(e, true)}
+            style={{
+              marginBottom: '10px',
+              border: '2px dashed #999',
+              borderRadius: '8px',
+              padding: '20px',
+              textAlign: 'center',
+              backgroundColor: isDraggingRelated ? '#eee' : '#fafafa',
+              color: '#333',
+            }}
+          >
+            {isDraggingRelated ? (
+              <p>Drop the images here ...</p>
+            ) : (
+              <p>Drag & drop related images here</p>
+            )}
+            {relatedImages.length > 0 && (
+              <div style={{ marginTop: '10px' }}>
+                <p style={{ color: 'green' }}>Related images uploaded:</p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '10px' }}>
+                  {relatedImages.map((url, idx) => (
+                    <div key={idx} style={{ position: 'relative' }}>
+                      <img
+                        src={url}
+                        alt={`Related ${idx + 1}`}
+                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px' }}
+                      />
+                      <button
+                        onClick={() => setRelatedImages(prev => prev.filter((_, i) => i !== idx))}
+                        style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '-8px',
+                          background: 'red',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           <button
             type="submit"
@@ -452,25 +739,402 @@ function AddEventModal({
 }
 
 /**
+ * Edit Event Modal - Similar to Add Event Modal but pre-populated
+ */
+function EditEventModal({
+  event,
+  onClose,
+  onEdit,
+}: {
+  event: {
+    id: string;
+    image: string;
+    title: string;
+    description: string;
+    date: string;
+    relatedImages: string[];
+  };
+  onClose: () => void;
+  onEdit: (id: string, data: {
+    title: string;
+    description: string;
+    date: string;
+    image: string;
+    relatedImages: string[];
+  }) => Promise<void>;
+}) {
+  // Convert the date string to YYYY-MM-DD format for the input
+  const formatDateForInput = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        const today = new Date();
+        return today.toISOString().split('T')[0];
+      }
+      return date.toISOString().split('T')[0];
+    } catch (e) {
+      const today = new Date();
+      return today.toISOString().split('T')[0];
+    }
+  };
+
+  const [title, setTitle] = useState(event.title);
+  const [description, setDescription] = useState(event.description);
+  const [date, setDate] = useState(formatDateForInput(event.date));
+  const [image, setImage] = useState(event.image);
+  const [relatedImages, setRelatedImages] = useState<string[]>(event.relatedImages || []);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingRelated, setIsDraggingRelated] = useState(false);
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isRelated) {
+      setIsDraggingRelated(true);
+    } else {
+      setIsDragging(true);
+    }
+  }
+
+  function handleDragEnter(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isRelated) {
+      setIsDraggingRelated(true);
+    } else {
+      setIsDragging(true);
+    }
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isRelated) {
+      setIsDraggingRelated(false);
+    } else {
+      setIsDragging(false);
+    }
+  }
+
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>, isRelated: boolean = false) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isRelated) {
+      setIsDraggingRelated(false);
+    } else {
+      setIsDragging(false);
+    }
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      const storageRef = ref(storage, `images/${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log('Upload is ' + progress + '% done');
+        },
+        (error) => {
+          console.error('Upload error:', error);
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          if (isRelated) {
+            setRelatedImages(prev => [...prev, downloadURL]);
+          } else {
+            setImage(downloadURL);
+          }
+        }
+      );
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await onEdit(event.id, {
+      title,
+      description,
+      date,
+      image,
+      relatedImages,
+    });
+    onClose();
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        overflowY: 'auto',
+        padding: '20px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '90%',
+          maxWidth: '500px',
+          backgroundColor: 'rgb(10,10,10)',
+          borderRadius: '8px',
+          padding: '20px',
+          position: 'relative',
+          boxShadow: '0 0px 15px rgba(155, 155, 155, 0.2)',
+          margin: '20px auto',
+        }}
+      >
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            fontSize: '1.2rem',
+            cursor: 'pointer',
+            background: 'none',
+            border: 'none',
+            color: '#fff',
+            padding: '8px',
+            borderRadius: '4px',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            zIndex: 10000,
+          }}
+        >
+          ✕
+        </button>
+        <h2 style={{ marginTop: '20px' }}>Edit Event</h2>
+
+        <form onSubmit={handleSubmit}>
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            Title:
+            <input
+              style={{ width: '100%', marginTop: '4px' }}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
+          </label>
+
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            Description:
+            <textarea
+              style={{ width: '100%', marginTop: '4px' }}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+            />
+          </label>
+
+          <label style={{ display: 'block', marginBottom: '8px' }}>
+            Date (YYYY-MM-DD):
+            <input
+              style={{ width: '100%', marginTop: '4px' }}
+              type="text"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+          </label>
+
+          {/* Main Image Upload */}
+          <div
+            onDrop={(e) => handleDrop(e, false)}
+            onDragOver={(e) => handleDragOver(e, false)}
+            onDragEnter={(e) => handleDragEnter(e, false)}
+            onDragLeave={(e) => handleDragLeave(e, false)}
+            style={{
+              marginBottom: '10px',
+              border: '2px dashed #999',
+              borderRadius: '8px',
+              padding: '20px',
+              textAlign: 'center',
+              backgroundColor: isDragging ? '#eee' : '#fafafa',
+              color: '#333',
+            }}
+          >
+            {isDragging ? (
+              <p>Drop the image here ...</p>
+            ) : (
+              <p>Drag & drop main image here</p>
+            )}
+            {image && (
+              <div style={{ marginTop: '10px' }}>
+                <p style={{ color: 'green' }}>Main image uploaded:</p>
+                <div style={{ position: 'relative', display: 'inline-block', marginTop: '10px' }}>
+                  <img
+                    src={image}
+                    alt="Main"
+                    style={{ 
+                      maxWidth: '200px', 
+                      maxHeight: '200px', 
+                      objectFit: 'cover', 
+                      borderRadius: '4px',
+                      display: 'block',
+                      margin: '0 auto'
+                    }}
+                  />
+                  <button
+                    onClick={() => setImage('')}
+                    style={{
+                      position: 'absolute',
+                      top: '-8px',
+                      right: '-8px',
+                      background: 'red',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Related Images Upload */}
+          <div
+            onDrop={(e) => handleDrop(e, true)}
+            onDragOver={(e) => handleDragOver(e, true)}
+            onDragEnter={(e) => handleDragEnter(e, true)}
+            onDragLeave={(e) => handleDragLeave(e, true)}
+            style={{
+              marginBottom: '10px',
+              border: '2px dashed #999',
+              borderRadius: '8px',
+              padding: '20px',
+              textAlign: 'center',
+              backgroundColor: isDraggingRelated ? '#eee' : '#fafafa',
+              color: '#333',
+            }}
+          >
+            {isDraggingRelated ? (
+              <p>Drop the images here ...</p>
+            ) : (
+              <p>Drag & drop related images here</p>
+            )}
+            {relatedImages.length > 0 && (
+              <div style={{ marginTop: '10px' }}>
+                <p style={{ color: 'green' }}>Related images uploaded:</p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '10px' }}>
+                  {relatedImages.map((url, idx) => (
+                    <div key={idx} style={{ position: 'relative' }}>
+                      <img
+                        src={url}
+                        alt={`Related ${idx + 1}`}
+                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px' }}
+                      />
+                      <button
+                        onClick={() => setRelatedImages(prev => prev.filter((_, i) => i !== idx))}
+                        style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '-8px',
+                          background: 'red',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px',
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            style={{
+              marginTop: '12px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+            }}
+          >
+            Save Changes
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Main Page 
  */
 export default function Home() {
-  const [loading, setLoading] = useState(true);
-  const [revealedCount, setRevealedCount] = useState(-1);
-  const [eventsData, setEventsData] = useState<
-    Array<{
-      id: string;
-      image: string;
-      title: string;
-      description: string;
-      date: string;
-      relatedImages: string[];
-    }>
-  >([]);
-  const [showAddModal, setShowAddModal] = useState(false); // <-- new state
-
-  const pathRef = useRef<SVGPathElement>(null);
+  const [events, setEvents] = useState<any[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [revealedCount, setRevealedCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pathRef = useRef<SVGPathElement>(null);
+
+  // Add useEffect to handle event query parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const eventId = params.get('event');
+    
+    if (eventId && events.length > 0) {
+      const event = events.find(e => e.id === eventId);
+      if (event) {
+        setSelectedEvent(event);
+      }
+    }
+  }, [events]);
+
+  // Fetch events from Firebase
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const q = query(collection(db, 'timelineEvents'), orderBy('date', 'asc'));
+        const snapshot = await getDocs(q);
+        const fetchedEvents = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setEvents(fetchedEvents);
+      } catch (error) {
+        console.error('Error fetching events:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
 
   // 1) On mount, fetch events from Firestore
   useEffect(() => {
@@ -507,13 +1171,10 @@ export default function Home() {
           });
         });
 
-        setEventsData(fetched);
-        setLoading(false);
-
+        setEvents(fetched);
       } catch (error) {
         console.error('Error fetching Firestore data:', error);
         // Even if there's an error, for this demo, let's hide loader
-        setLoading(false);
       }
     }
     fetchData();
@@ -521,7 +1182,7 @@ export default function Home() {
 
   // 2) Once not loading & pathRef is ready, measure path & animate + reveal
   useLayoutEffect(() => {
-    if (loading || !pathRef.current || eventsData.length === 0) return;
+    if (loading || !pathRef.current || events.length === 0) return;
 
     const pathLength = pathRef.current.getTotalLength();
 
@@ -530,7 +1191,7 @@ export default function Home() {
     pathRef.current.style.transition = 'none';
     pathRef.current.getBoundingClientRect();
 
-    const totalTime = eventsData.length * 600;
+    const totalTime = events.length * 600;
     pathRef.current.style.transition = `stroke-dashoffset ${totalTime}ms linear`;
     requestAnimationFrame(() => {
       pathRef.current!.style.strokeDashoffset = '0';
@@ -538,7 +1199,7 @@ export default function Home() {
 
     // Reveal events one-by-one
     let current = 0;
-    const total = eventsData.length;
+    const total = events.length;
     const interval = setInterval(() => {
       setRevealedCount((prev) => {
         if (prev < total - 1) {
@@ -555,7 +1216,7 @@ export default function Home() {
     }, 600);
 
     return () => clearInterval(interval);
-  }, [loading, eventsData]);
+  }, [loading, events]);
 
   // If loading, show boomerang loader
   if (loading) {
@@ -618,25 +1279,73 @@ export default function Home() {
       const newEvent = { id: docRef.id, ...data };
       // We'll insert it in the array in the correct order if you want
       // For simplicity, just push + re-sort
-      const updated = [...eventsData, newEvent];
+      const updated = [...events, newEvent];
       // if using 'date' as a string or timestamp, we can sort here if needed
       // e.g. if it's just a string, you might want a standardized format
       // updated.sort((a, b) => (a.date > b.date ? 1 : -1));
-      setEventsData(updated);
+      setEvents(updated);
     } catch (error) {
       console.error('Failed to add new event:', error);
     }
   }
 
   function handleCloseModal() {
-    setShowAddModal(false);
+    setIsAddModalOpen(false);
+  }
+
+  async function handleEditEvent(id: string, data: {
+    title: string;
+    description: string;
+    date: string;
+    image: string;
+    relatedImages: string[];
+  }) {
+    try {
+      // Parse the date string and create a valid Date object
+      const [year, month, day] = data.date.split('-').map(Number);
+      const dateObj = new Date(year, month - 1, day);
+      
+      // Validate the date
+      if (isNaN(dateObj.getTime())) {
+        throw new Error('Invalid date format');
+      }
+
+      // Create Firestore timestamp
+      const timestamp = Timestamp.fromDate(dateObj);
+
+      // Update in Firestore
+      const eventRef = doc(db, 'timelineEvents', id);
+      await updateDoc(eventRef, {
+        title: data.title,
+        description: data.description,
+        date: timestamp,
+        image: data.image,
+        relatedImages: data.relatedImages,
+      });
+
+      // Update local state
+      setEvents(prevEvents => 
+        prevEvents.map(event => 
+          event.id === id 
+            ? { 
+                ...event, 
+                ...data,
+                date: dateObj.toLocaleDateString() // Format date for display
+              }
+            : event
+        )
+      );
+    } catch (error) {
+      console.error('Failed to edit event:', error);
+      alert('Failed to update event. Please check the date format (YYYY-MM-DD) and try again.');
+    }
   }
 
   // 3) Now we have data & are not loading -> build the timeline
   // Compute path points
-  const points = eventsData.map((_, i) => getEventPosition(i));
+  const points = events.map((_, i) => getEventPosition(i));
   const pathD = getSmoothPath(points);
-  const rowCount = Math.ceil(eventsData.length / EVENTS_PER_ROW);
+  const rowCount = Math.ceil(events.length / EVENTS_PER_ROW);
   const totalHeight = rowCount * ROW_HEIGHT;
   const totalWidth = EVENTS_PER_ROW * (CARD_WIDTH + CARD_GAP);
 
@@ -653,41 +1362,61 @@ export default function Home() {
     >
       {/* Show expanded modal if user selected a card */}
       {selectedEvent && (
-        <ExpandedModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+        <ExpandedModal 
+          event={selectedEvent} 
+          onClose={() => setSelectedEvent(null)}
+          onEdit={(event) => {
+            setIsEditModalOpen(true);
+          }}
+        />
       )}
 
       {/* If user is adding a new event, show AddEventModal */}
-      {showAddModal && (
+      {isAddModalOpen && (
         <AddEventModal
           onClose={handleCloseModal}
           onAdd={handleAddEvent}
         />
       )}
 
+      {/* If user is editing an event, show EditEventModal */}
+      {isEditModalOpen && selectedEvent && (
+        <EditEventModal
+          event={selectedEvent}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setSelectedEvent(null);
+          }}
+          onEdit={handleEditEvent}
+        />
+      )}
+
       {/* "Add" button in top-right corner (floating) */}
-      <button
-        onClick={() => setShowAddModal(true)}
-        style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
-          width: '50px',
-          height: '50px',
-          display: 'flex',         // center the plus symbol
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: '50%',     // circle shape
-          fontSize: '1.5rem',
-          cursor: 'pointer',
-          backgroundColor: 'rgba(0,0,0,0.3)',   // "bg-black/30"
-          color: '#fff',
-          border: 'none',
-          boxShadow: '0 0px 10px rgba(220, 220, 220, 0.3)', // the light glow
-          outline: 'none',
-        }}
-      >
-        +
-      </button>
+      <div style={{
+        position: 'absolute',
+        top: '20px',
+        right: '20px',
+      }}>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          style={{
+            width: '50px',
+            height: '50px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%',
+            fontSize: '1.5rem',
+            cursor: 'pointer',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            color: '#fff',
+            border: 'none',
+            boxShadow: '0 0px 10px rgba(220, 220, 220, 0.3)',
+          }}
+        >
+          +
+        </button>
+      </div>
 
       <div
         style={{
@@ -717,7 +1446,7 @@ export default function Home() {
           />
         </svg>
 
-        {eventsData.map((ev, i) => {
+        {events.map((ev, i) => {
           const isRevealed = revealedCount >= i;
           return (
             <EventCard
