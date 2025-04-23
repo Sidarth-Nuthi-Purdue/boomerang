@@ -22,8 +22,11 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
+interface SingleDocTypewriterProps {
+  typingSpeed?: number;
+}
 
-export default function SingleDocTypewriter() {
+export default function SingleDocTypewriter({ typingSpeed = 100 }: SingleDocTypewriterProps) {
   const [text, setText] = useState('');
 
   useEffect(() => {
@@ -48,5 +51,5 @@ export default function SingleDocTypewriter() {
     fetchText();
   }, []);
 
-  return <Typewriter text={text} />;
+  return <Typewriter text={text} typingSpeed={typingSpeed} />;
 }
