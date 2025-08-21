@@ -9,7 +9,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCfzCS5vX2g9ttfIDuANSJVMnnAeq84uRk",
   authDomain: "boomerang-13efe.firebaseapp.com",
   projectId: "boomerang-13efe",
-  storageBucket: "boomerang-13efe",
+  storageBucket: "boomerang-13efe.firebasestorage.app",
   messagingSenderId: "178749616808",
   appId: "1:178749616808:web:40a573be16a57a58dbc89d",
   measurementId: "G-JZVJPEXBG8"
