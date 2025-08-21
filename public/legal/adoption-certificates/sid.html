@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ted's Official Adoption Certificate</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Fun, colorful confetti-like background */
+            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            /* Confetti overlay */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cg opacity='.5'%3E%3Cpath d='M20 0L0 20l20 20L40 20z' fill='%23fef9c3'%3E%3C/path%3E%3Cpath d='M80 0L60 20l20 20L100 20z' fill='%23fef9c3'%3E%3C/path%3E%3Cpath d='M0 60l20 20l-20 20L0 80z' fill='%23fef9c3'%3E%3C/path%3E%3Cpath d='M60 60l20 20l-20 20L60 80z' fill='%23fef9c3'%3E%3C/path%3E%3Cpath d='M40 0L20 20l20 20L60 20z' fill='%23bbf7d0'%3E%3C/path%3E%3Cpath d='M0 20l20 20l-20 20L0 40z' fill='%23bbf7d0'%3E%3C/path%3E%3Cpath d='M20 40l20 20l-20 20L20 60z' fill='%23bfdbfe'%3E%3C/path%3E%3Cpath d='M40 40l20 20l-20 20L40 60z' fill='%23bfdbfe'%3E%3C/path%3E%3Cpath d='M20 80l20 20l-20 20L20 100z' fill='%23fecaca'%3E%3C/path%3E%3Cpath d='M80 80l20 20l-20 20L80 100z' fill='%23fecaca'%3E%3C/path%3E%3C/g%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cg opacity='.6'%3E%3Cpath d='M20 10l-10 10l10 10l10-10z' fill='%23a78bfa'%3E%3C/path%3E%3Cpath d='M80 10l-10 10l10 10l10-10z' fill='%23a78bfa'%3E%3C/path%3E%3Cpath d='M10 70l-10 10l10 10l10-10z' fill='%23a78bfa'%3E%3C/path%3E%3Cpath d='M70 70l-10 10l10 10l10-10z' fill='%23a78bfa'%3E%3C/path%3E%3C/g%3E%3C/svg%3E");
+            background-size: 100px 100px;
+            animation: confetti-movement 20s linear infinite;
+        }
+
+        @keyframes confetti-movement {
+            from { background-position: 0% 0%, 0% 0%; }
+            to { background-position: 100% 100%, 100% 100%; }
+        }
+
+        .certificate-container {
+            background-color: #ffffff;
+            border: 8px solid #fbd38d; /* A golden-ish border */
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            z-index: 1; /* Ensure certificate is above background confetti */
+        }
+        .header-text {
+            font-size: clamp(2rem, 5vw, 4rem);
+            font-weight: 700;
+            color: #d97706; /* Orange-gold */
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            line-height: 1.1;
+        }
+        .body-text {
+            font-size: clamp(1rem, 2.5vw, 1.5rem);
+            color: #333;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        .signature-line {
+            border-bottom: 2px dashed #999;
+            width: 70%;
+            margin: 40px auto 20px auto;
+        }
+        .label {
+            font-size: clamp(0.9rem, 2vw, 1.1rem);
+            color: #555;
+            margin-top: 10px;
+        }
+        .stamp-container {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            width: 100px;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #fbd38d;
+            border: 4px dashed #d97706;
+            border-radius: 50%;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transform: rotate(-15deg);
+        }
+        .teddy-bear-stamp {
+            font-size: 4rem; /* Use a large emoji or SVG for the bear */
+            line-height: 1;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 640px) {
+            .certificate-container {
+                padding: 20px;
+                border-width: 4px;
+            }
+            .stamp-container {
+                width: 80px;
+                height: 80px;
+                bottom: 20px;
+                right: 20px;
+                border-width: 3px;
+            }
+            .teddy-bear-stamp {
+                font-size: 3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="certificate-container">
+        <h1 class="header-text">Ted's Official Dad!</h1>
+
+        <p class="body-text">
+            This delightful certificate proudly confirms that <span class="font-bold text-blue-700">Sidarth Nuthi</span>
+            has officially and lovingly welcomed <strong>Ted</strong>, a truly magnificent and
+            exceptionally cuddly stuffed animal, into his heart and home!
+        </p>
+
+        <p class="body-text">
+            On this unforgettable day, <input type="date" id="adoptionDate" class="font-bold text-gray-800 bg-transparent border-b-2 border-dashed border-gray-400 px-2 py-1 focus:outline-none focus:border-orange-500 transition-colors" placeholder="Select date" />,
+            Sidarth Nuthi solemnly promises to provide Ted with endless snuggles,
+            unconditional love, and a lifetime of adventures, especially those shared
+            with Ted's soon-to-be equally official mom, Alexandra Lauren Mckoy (I wonder what that means!).
+        </p>
+
+        <p class="body-text font-semibold italic mt-8 text-orange-600">
+            Make sure to love him forever, and embark on many family adventures!
+        </p>
+
+        <div class="signature-line">
+            <input type="text" id="signature" class="w-full bg-transparent border-0 text-center text-2xl text-gray-700 focus:outline-none focus:text-orange-600 transition-colors" placeholder="Click to sign" style="font-family: 'Dancing Script', cursive; height: 30px; margin-top: -15px; text-transform: none;" />
+        </div>
+        <p class="label">Official Dad's Signature (and future family planner)</p>
+
+        <div class="stamp-container">
+            <span class="teddy-bear-stamp" role="img" aria-label="Teddy Bear">🐻</span>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase configuration
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCfzCS5vX2g9ttfIDuANSJVMnnAeq84uRk",
+            authDomain: "boomerang-13efe.firebaseapp.com",
+            projectId: "boomerang-13efe",
+            storageBucket: "boomerang-13efe.firebasestorage.app",
+            messagingSenderId: "178749616808",
+            appId: "1:178749616808:web:40a573be16a57a58dbc89d",
+            measurementId: "G-JZVJPEXBG8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const CERTIFICATE_ID = 'sid-certificate';
+        const LOCAL_STORAGE_KEY = 'sid-certificate-data';
+
+        // DOM elements
+        const adoptionDateInput = document.getElementById('adoptionDate');
+        const signatureInput = document.getElementById('signature');
+
+        // Load data from localStorage first, then sync with Firebase
+        function loadLocalData() {
+            const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (localData) {
+                const data = JSON.parse(localData);
+                if (data.adoptionDate) adoptionDateInput.value = data.adoptionDate;
+                if (data.signature) signatureInput.value = data.signature;
+            }
+        }
+
+        // Save data to localStorage
+        function saveLocalData(data) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+        }
+
+        // Load data from Firebase
+        async function loadFromFirebase() {
+            try {
+                const docRef = doc(db, 'certificates', CERTIFICATE_ID);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.adoptionDate) adoptionDateInput.value = data.adoptionDate;
+                    if (data.signature) signatureInput.value = data.signature;
+                    
+                    // Update localStorage with Firebase data
+                    saveLocalData(data);
+                }
+            } catch (error) {
+                console.log('Firebase load failed, using localStorage:', error);
+            }
+        }
+
+        // Save data to Firebase
+        async function saveToFirebase(data) {
+            try {
+                const docRef = doc(db, 'certificates', CERTIFICATE_ID);
+                await setDoc(docRef, data, { merge: true });
+            } catch (error) {
+                console.log('Firebase save failed, data saved locally:', error);
+            }
+        }
+
+        // Debouncing variables
+        let saveTimeout = null;
+        
+        // Handle input changes with debouncing
+        function handleInputChange() {
+            const data = {
+                adoptionDate: adoptionDateInput.value,
+                signature: signatureInput.value,
+                lastUpdated: new Date().toISOString()
+            };
+
+            // Save to localStorage immediately
+            saveLocalData(data);
+            
+            // Clear existing timeout
+            if (saveTimeout) {
+                clearTimeout(saveTimeout);
+            }
+            
+            // Set new timeout to save to Firebase after typing stops
+            saveTimeout = setTimeout(() => {
+                saveToFirebase(data);
+            }, 1000); // Wait 1 second after typing stops
+        }
+
+        // Handle date changes (immediate save)
+        function handleDateChange() {
+            const data = {
+                adoptionDate: adoptionDateInput.value,
+                signature: signatureInput.value,
+                lastUpdated: new Date().toISOString()
+            };
+
+            // Save to localStorage immediately
+            saveLocalData(data);
+            
+            // Save to Firebase immediately for date changes
+            saveToFirebase(data);
+        }
+
+        // Initialize
+        loadLocalData();
+        loadFromFirebase();
+
+        // Add event listeners
+        adoptionDateInput.addEventListener('change', handleDateChange);
+        signatureInput.addEventListener('input', handleInputChange);
+    </script>
+</body>
+</html>

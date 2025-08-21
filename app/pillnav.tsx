@@ -26,6 +26,12 @@ export default function PillNavBar() {
       <Link href="/boomerang" className="hover:text-white transition flex items-center gap-1">
         <span>🪃</span> Boomerang
       </Link>
+      <Link href="/legal" className="hover:text-white transition flex items-center gap-1">
+        <span>📄</span> Legal
+      </Link>
+      <Link href="/blogs" className="hover:text-white transition flex items-center gap-1">
+        <span>📰</span> Blogs
+      </Link>
     </nav>
   );
 }
