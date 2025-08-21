@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -15,7 +15,8 @@ const firebaseConfig = {
   measurementId: "G-JZVJPEXBG8"
 };
 
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase only if it hasn't been initialized already
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
@@ -116,7 +117,7 @@ export default function BlogsPage() {
           id: doc.id,
           ...data,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt
-        } as VideoData;
+        } as unknown as VideoData;
       });
       setUploadedVideos(videosData);
       console.log(`✅ Loaded ${videosData.length} videos from database:`, videosData);
@@ -293,13 +294,13 @@ export default function BlogsPage() {
         
         video.onloadedmetadata = () => {
           try {
-            if (!video.captureStream) {
+            if (!(video as any).captureStream) {
               console.log('❌ Video capture not supported, skipping audio extraction');
               resolve(null);
               return;
             }
             
-            const stream = video.captureStream();
+            const stream = (video as any).captureStream();
             const audioTracks = stream.getAudioTracks();
             
             if (audioTracks.length === 0) {
@@ -423,419 +424,6 @@ export default function BlogsPage() {
     
     throw new Error(`Failed to upload segment after ${maxRetries + 1} attempts`);
   };
-
-  // Split video into segments and compress them in parallel
-  const compressVideoInParallelSegments = async (file: File): Promise<File> => {
-    const fileSizeMB = file.size / (1024 * 1024);
-    
-    return new Promise(async (resolve) => {
-      try {
-        const video = document.createElement('video');
-        video.muted = true;
-        video.src = URL.createObjectURL(file);
-        
-        await new Promise((videoResolve) => {
-          video.onloadedmetadata = videoResolve;
-          video.onerror = () => {
-            console.log('Video load failed, using original');
-            resolve(file);
-          };
-        });
-        
-        const duration = video.duration;
-        
-        // Clean up video element URL
-        URL.revokeObjectURL(video.src);
-        
-        // For very long videos, use longer segments to reduce total count
-        let segmentDuration;
-        if (duration > 1200) { // >20 minutes
-          segmentDuration = 20; // 2-minute segments
-        } else if (duration > 600) { // >10 minutes  
-          segmentDuration = 60; // 1-minute segments
-        } else {
-          segmentDuration = 30; // 30-second segments
-        }
-        
-        const numSegments = Math.min(60, Math.ceil(duration / segmentDuration)); // Max 20 segments
-        const actualSegmentDuration = duration / numSegments; // Evenly distribute
-        
-        console.log(`Splitting ${duration.toFixed(1)}s video into ${numSegments} segments of ${actualSegmentDuration.toFixed(1)}s each`);
-        
-        // Simultaneous compression and upload - upload segments as they complete
-        const baseVideoId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-        const maxConcurrent = Math.min(6, numSegments);
-        const uploadedSegments: { index: number; videoData: VideoData; size: number }[] = [];
-        let totalUploadedSize = 0;
-        let completedSegments = 0;
-        
-        const processAndUploadSegment = async (segmentIndex: number): Promise<void> => {
-          const startTime = segmentIndex * actualSegmentDuration;
-          const segDuration = Math.min(actualSegmentDuration, duration - startTime);
-          
-          console.log(`🔄 Compressing segment ${segmentIndex + 1}/${numSegments}: ${startTime.toFixed(1)}s - ${(startTime + segDuration).toFixed(1)}s`);
-          
-          try {
-            // Step 1: Compress segment
-            const segmentBlob = await compressVideoSegment(file, startTime, segDuration, segmentIndex);
-            if (!segmentBlob) {
-              console.log(`❌ Segment ${segmentIndex + 1} compression failed`);
-              return;
-            }
-            
-            const segmentSizeMB = segmentBlob.size / (1024 * 1024);
-            console.log(`✅ Segment ${segmentIndex + 1} compressed: ${segmentSizeMB.toFixed(1)}MB`);
-            
-            // Step 2: Immediately upload compressed segment
-            console.log(`📤 Uploading segment ${segmentIndex + 1} (${segmentSizeMB.toFixed(1)}MB)...`);
-            const segmentFile = new File([segmentBlob], 
-              `${file.name.replace(/\.[^/.]+$/, '')}_segment_${segmentIndex + 1}.webm`, 
-              { type: 'video/webm' }
-            );
-            
-            const videoData = await uploadSegmentDirect(segmentFile, baseVideoId);
-            
-            if (videoData) {
-              uploadedSegments.push({
-                index: segmentIndex,
-                videoData,
-                size: segmentBlob.size
-              });
-              totalUploadedSize += segmentBlob.size;
-              completedSegments++;
-              
-              console.log(`🚀 Segment ${segmentIndex + 1}/${numSegments} uploaded! (${completedSegments} complete, ${(totalUploadedSize / 1024 / 1024).toFixed(1)}MB total)`);
-            }
-            
-          } catch (error) {
-            console.log(`❌ Segment ${segmentIndex + 1} process/upload failed:`, error);
-          }
-        };
-        
-        // Start processing all segments simultaneously
-        console.log(`🚀 Starting simultaneous compression + upload of ${numSegments} segments...`);
-        const allSegmentPromises: Promise<void>[] = [];
-        
-        // Process segments in waves to avoid overwhelming the browser
-        const targetSegments = Math.min(12, numSegments); // Process more segments since we're uploading immediately
-        
-        for (let i = 0; i < targetSegments; i += maxConcurrent) {
-          const batch = [];
-          for (let j = i; j < Math.min(i + maxConcurrent, targetSegments); j++) {
-            batch.push(processAndUploadSegment(j));
-          }
-          
-          // Don't await here - let segments upload as they complete
-          allSegmentPromises.push(...batch);
-          
-          // Small delay between batches to prevent overwhelming
-          if (i + maxConcurrent < targetSegments) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-        
-        // Wait for all segments to complete
-        await Promise.all(allSegmentPromises);
-        
-        if (uploadedSegments.length === 0) {
-          console.log('No segments were uploaded, using original file upload');
-          resolve(file);
-          return;
-        }
-        
-        // Sort uploaded segments by index
-        uploadedSegments.sort((a, b) => a.index - b.index);
-        
-        console.log(`✅ Simultaneous compression+upload complete: ${uploadedSegments.length} segments, ${(totalUploadedSize / 1024 / 1024).toFixed(1)}MB total`);
-        
-        // Create a combined video data object representing all segments
-        const combinedVideoData: VideoData = {
-          id: `combined_${Date.now()}`,
-          filename: file.name.replace(/\.[^/.]+$/, '_compressed.webm'),
-          url: uploadedSegments[0].videoData.url, // Use first segment's URL as representative
-          segments: uploadedSegments.map(s => s.videoData) // Store all segment URLs
-        };
-        
-        // Create a fake "compressed file" for the return value
-        const fakeCompressedFile = new File([new Blob()], combinedVideoData.filename, { type: 'video/webm' });
-        Object.defineProperty(fakeCompressedFile, 'size', { value: totalUploadedSize });
-        Object.defineProperty(fakeCompressedFile, '_videoData', { value: combinedVideoData });
-        
-        const totalCompressedMB = totalUploadedSize / (1024 * 1024);
-        const reduction = ((file.size - totalUploadedSize) / file.size * 100);
-        
-        console.log(`✅ Parallel compression complete: ${fileSizeMB.toFixed(1)}MB → ${totalCompressedMB.toFixed(1)}MB (${reduction.toFixed(0)}% reduction)`);
-        resolve(fakeCompressedFile);
-        
-      } catch (error) {
-        console.log('❌ Parallel compression failed:', error);
-        resolve(file);
-      }
-    });
-  };
-
-  // Compress a single video segment
-  const compressVideoSegment = async (file: File, startTime: number, duration: number, segmentIndex: number): Promise<Blob | null> => {
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.muted = true;
-      video.src = URL.createObjectURL(file);
-      
-      video.onloadedmetadata = () => {
-        try {
-          if (!video.captureStream) {
-            resolve(null);
-            return;
-          }
-          
-          const stream = video.captureStream(30);
-          
-          // Use compatible codec settings
-          let mediaRecorderOptions;
-          if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-            mediaRecorderOptions = {
-              mimeType: 'video/webm;codecs=vp9',
-              videoBitsPerSecond: 6000000 // 6Mbps for segments
-            };
-          } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-            mediaRecorderOptions = {
-              mimeType: 'video/webm;codecs=vp8', 
-              videoBitsPerSecond: 6000000
-            };
-          } else {
-            mediaRecorderOptions = {
-              mimeType: 'video/webm',
-              videoBitsPerSecond: 6000000
-            };
-          }
-          
-          const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
-          const chunks: BlobPart[] = [];
-          
-          mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              chunks.push(event.data);
-            }
-          };
-          
-          mediaRecorder.onstop = () => {
-            URL.revokeObjectURL(video.src);
-            if (chunks.length > 0) {
-              const segmentBlob = new Blob(chunks, { type: mediaRecorderOptions.mimeType });
-              resolve(segmentBlob);
-            } else {
-              resolve(null);
-            }
-          };
-          
-          mediaRecorder.onerror = () => {
-            URL.revokeObjectURL(video.src);
-            resolve(null);
-          };
-          
-          // Set video to segment start time and play
-          video.currentTime = startTime;
-          video.onseeked = () => {
-            mediaRecorder.start(500); // Get data every 500ms
-            video.play();
-            
-            // Stop recording after segment duration
-            setTimeout(() => {
-              video.pause();
-              if (mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-              }
-            }, duration * 1000);
-          };
-          
-          // Fallback timeout
-          setTimeout(() => {
-            if (mediaRecorder.state === 'recording') {
-              video.pause();
-              mediaRecorder.stop();
-            } else {
-              URL.revokeObjectURL(video.src);
-              resolve(null);
-            }
-          }, (duration + 5) * 1000);
-          
-        } catch (error) {
-          URL.revokeObjectURL(video.src);
-          resolve(null);
-        }
-      };
-      
-      video.onerror = () => {
-        URL.revokeObjectURL(video.src);
-        resolve(null);
-      };
-    });
-  };
-
-  // Simpler MediaRecorder compression with better error handling
-  const compressVideoWithMediaRecorder = async (file: File): Promise<File> => {
-    const fileSizeMB = file.size / (1024 * 1024);
-    
-    return new Promise((resolve) => {
-      console.log(`🔄 MediaRecorder compressing ${file.name} (${fileSizeMB.toFixed(1)}MB)...`);
-      
-      const video = document.createElement('video');
-      video.muted = true;
-      video.crossOrigin = 'anonymous';
-      
-      let mediaRecorder: MediaRecorder | null = null;
-      let chunks: BlobPart[] = [];
-      let recordingStarted = false;
-      
-      const cleanup = () => {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-        }
-        if (video.src) {
-          URL.revokeObjectURL(video.src);
-        }
-      };
-      
-      video.onloadedmetadata = () => {
-        try {
-          console.log(`Video loaded: ${video.duration.toFixed(1)}s, ${video.videoWidth}x${video.videoHeight}`);
-          
-          // Check if we can capture stream
-          if (!video.captureStream) {
-            console.log('captureStream not supported');
-            resolve(file);
-            return;
-          }
-          
-          const stream = video.captureStream(30); // 30 FPS
-          
-          // Try different codecs if VP9 fails
-          let mediaRecorderOptions;
-          if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-            mediaRecorderOptions = {
-              mimeType: 'video/webm;codecs=vp9',
-              videoBitsPerSecond: 8000000 // 8Mbps for better compatibility
-            };
-          } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-            mediaRecorderOptions = {
-              mimeType: 'video/webm;codecs=vp8', 
-              videoBitsPerSecond: 8000000
-            };
-          } else if (MediaRecorder.isTypeSupported('video/webm')) {
-            mediaRecorderOptions = {
-              mimeType: 'video/webm',
-              videoBitsPerSecond: 8000000
-            };
-          } else {
-            console.log('No supported WebM codecs');
-            resolve(file);
-            return;
-          }
-          
-          console.log(`Using codec: ${mediaRecorderOptions.mimeType}`);
-          mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
-          
-          mediaRecorder.ondataavailable = (event) => {
-            console.log(`Data chunk: ${event.data.size} bytes`);
-            if (event.data.size > 0) {
-              chunks.push(event.data);
-            }
-          };
-          
-          mediaRecorder.onstop = () => {
-            console.log(`Recording stopped, ${chunks.length} chunks collected`);
-            cleanup();
-            
-            if (chunks.length > 0) {
-              const compressedBlob = new Blob(chunks, { type: mediaRecorderOptions.mimeType });
-              const compressedSizeMB = compressedBlob.size / (1024 * 1024);
-              
-              console.log(`Compressed size: ${compressedSizeMB.toFixed(1)}MB`);
-              
-              if (compressedBlob.size > 10 * 1024 * 1024 && compressedBlob.size < file.size * 0.9) {
-                const compressedFile = new File([compressedBlob], 
-                  file.name.replace(/\.[^/.]+$/, '.webm'), 
-                  { type: 'video/webm' }
-                );
-                const reduction = ((file.size - compressedFile.size) / file.size * 100);
-                console.log(`✅ MediaRecorder compression: ${fileSizeMB.toFixed(1)}MB → ${compressedSizeMB.toFixed(1)}MB (${reduction.toFixed(0)}% reduction)`);
-                resolve(compressedFile);
-              } else {
-                console.log(`⏭️ MediaRecorder compression not effective, using original`);
-                resolve(file);
-              }
-            } else {
-              console.log('❌ No data chunks collected');
-              resolve(file);
-            }
-          };
-          
-          mediaRecorder.onerror = (event) => {
-            console.log('MediaRecorder error:', event);
-            cleanup();
-            resolve(file);
-          };
-          
-          // Start recording
-          video.currentTime = 0;
-          mediaRecorder.start(1000); // Request data every second
-          recordingStarted = true;
-          
-          video.play().then(() => {
-            console.log('Video playback started');
-          }).catch((playError) => {
-            console.log('Video play failed:', playError);
-            cleanup();
-            resolve(file);
-          });
-          
-          // Stop when video ends
-          video.onended = () => {
-            console.log('Video ended');
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-              mediaRecorder.stop();
-            }
-          };
-          
-          // Safety timeout - 5 minutes max
-          setTimeout(() => {
-            console.log('Safety timeout reached');
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-              video.pause();
-              mediaRecorder.stop();
-            } else {
-              cleanup();
-              resolve(file);
-            }
-          }, 300000); // 5 minutes
-          
-        } catch (error) {
-          console.log('❌ MediaRecorder setup failed:', error);
-          cleanup();
-          resolve(file);
-        }
-      };
-      
-      video.onerror = (error) => {
-        console.log('Video load error:', error);
-        cleanup();
-        resolve(file);
-      };
-      
-      // Overall timeout
-      setTimeout(() => {
-        if (!recordingStarted) {
-          console.log('Overall timeout - recording never started');
-          cleanup();
-          resolve(file);
-        }
-      }, 30000); // 30 second timeout for setup
-      
-      video.src = URL.createObjectURL(file);
-      video.load();
-    });
-  };
-
   // Optimized upload with file size-based method selection
   const uploadVideo = async (file: File) => {
     const videoId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -993,7 +581,7 @@ export default function BlogsPage() {
         console.error('Failed to save video to database:', error);
       }
 
-      setUploadedVideos(prev => [...prev, { ...result, audioUrl }]);
+      setUploadedVideos(prev => [...prev, { ...result, audioUrl: audioUrl || undefined }]);
 
       setTimeout(() => {
         setUploadingVideos(prev => {
@@ -1139,43 +727,6 @@ export default function BlogsPage() {
     });
   };
 
-  // Fallback upload method using basic uploadBytes for maximum compatibility
-  const fallbackUpload = async (file: File, videoId: string) => {
-    try {
-      console.log('Using fallback upload method...');
-      const storageRef = ref(storage, `videos/${videoId}_fallback_${file.name}`);
-      
-      // Use basic upload which might be faster for some files/connections
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      const videoData: VideoData = {
-        id: videoId,
-        filename: file.name,
-        url: downloadURL
-      };
-
-      setUploadingVideos(prev => ({ ...prev, [videoId]: 100 }));
-      setUploadedVideos(prev => [...prev, videoData]);
-
-      setTimeout(() => {
-        setUploadingVideos(prev => {
-          const newState = { ...prev };
-          delete newState[videoId];
-          return newState;
-        });
-      }, 300);
-
-    } catch (error) {
-      console.error('Fallback upload also failed:', error);
-      setUploadingVideos(prev => {
-        const newState = { ...prev };
-        delete newState[videoId];
-        return newState;
-      });
-    }
-  };
-
   const generateBlogFromVideos = async () => {
     if (uploadedVideos.length === 0) return;
 
@@ -1205,8 +756,8 @@ export default function BlogsPage() {
               new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Client timeout after 10 minutes')), 600000)
               )
-            ]);
-            const transcription = (result.data as any).transcription;
+            ]) as any;
+            const transcription = result.data.transcription;
             
             return { ...video, transcription };
           } catch (error) {
@@ -1516,7 +1067,7 @@ export default function BlogsPage() {
                     Choose Files
                   </label>
                   <p className="text-xs text-gray-500 mt-3">
-                    💡 Optimized for huge .mov files - 512MB chunks, 30min timeouts, single upload for >1GB
+                    💡 Optimized for huge .mov files - 512MB chunks, 30min timeouts, single upload for &gt;1GB
                   </p>
                 </div>
               </div>
