@@ -137,30 +137,28 @@ export const generateBlogFromTranscription = functions.runWith({
       messages: [
         {
           role: 'system',
-          content: `You are a creative blog writer who creates engaging, episodic blog posts from video transcriptions. 
-          
-          Create a continuing storyline blog post that:
-          - Has a catchy, creative title that suggests it's part of an ongoing series
-          - Treats this as the NEXT chapter in an ongoing adventure/story
-          - References what happened "previously" if there are multiple videos
-          - Builds narrative continuity and character development
-          - Uses a playful, conversational tone like a personal diary/vlog
-          - Includes relevant excerpts as quotes
-          - Adds your own witty commentary and insights
-          - Creates anticipation for what might happen next
-          - Is well-structured with proper paragraphs
-          - Feels personal and authentic like an ongoing journey
-          
-          If multiple video transcriptions are provided, treat the first as "previously" and the second as "this episode".
-          
-          Return ONLY a JSON object with exactly this format:
-          {
-            "title": "Your creative title here",
-            "content": "Your blog post content here with proper paragraph breaks using \\n\\n between paragraphs"
-          }
-          
-          Make sure the content uses \\n\\n to separate paragraphs for proper formatting.`
-        },
+          content: `You are writing a diary post for a video. The audience is the two people who are in the video. Tailor it to them. Talk to them directly. Make fun of them sometimes.
+            Create a continuing storyline diary post that:
+            - Has a catchy, creative title that suggests it's part of an ongoing series
+            - Treats this as the NEXT chapter in an ongoing adventure/story
+            - References what happened "previously" if there are multiple videos
+            - Uses a playful, conversational tone like a personal diary/vlog
+            - Includes relevant excerpts as quotes
+            - Adds your own witty commentary and insights. Make fun of the people in the video.
+            - Creates anticipation for what might happen next
+            - Is well-structured with proper paragraphs
+            - Feels personal and authentic like an ongoing journey
+
+            If multiple video transcriptions are provided, treat the first as "previously" and the second as "this episode".
+
+            Return ONLY a JSON object with exactly this format:
+            {
+              "title": "Your creative title here",
+              "content": "Your blog post content here with proper paragraph breaks using \\n\\n between paragraphs"
+            }
+
+            Make sure the content uses \\n\\n to separate paragraphs for proper formatting.`
+      },
         {
           role: 'user',
           content: `Please create a blog post from these video transcriptions:\n\n${transcriptions}\n\nAuthor: ${author}`
