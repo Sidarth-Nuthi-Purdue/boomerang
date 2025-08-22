@@ -732,9 +732,9 @@ export default function BlogsPage() {
 
     setGeneratingBlog(true);
     
-    // Only use the last 2 videos to extend the storyline
-    const recentVideos = uploadedVideos.slice(-2);
-    console.log(`🎬 Creating blog from ${recentVideos.length} most recent videos (of ${uploadedVideos.length} total)`);
+    // Use all uploaded videos for the blog
+    const recentVideos = uploadedVideos;
+    console.log(`🎬 Creating blog from ${recentVideos.length} videos`);
     
     setProcessingVideos(recentVideos.map(v => v.id));
 
@@ -803,10 +803,26 @@ export default function BlogsPage() {
 
       const generated = result.data as any;
 
-      // Create blog with generated content and video URLs
+      // Handle case where Firebase function returns JSON as content
+      let blogTitle = generated.title;
+      let blogContent = generated.content;
+      console.log(generated)
+      // If the content looks like JSON, parse it
+      if (typeof generated.content === 'string' && generated.content.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(generated.content);
+          blogTitle = parsed.title || generated.title;
+          blogContent = parsed.content || generated.content;
+          console.log('🔧 Parsed JSON from content field:', { title: blogTitle, content: blogContent.substring(0, 100) + '...' });
+        } catch (e) {
+          console.log('⚠️ Failed to parse JSON from content field');
+        }
+      }
+      
+      // Create blog with generated content and video URLs  
       const blogData = {
-        title: generated.title,
-        content: generated.content,
+        title: blogTitle,
+        content: blogContent,
         author: newBlog.author || 'Anonymous',
         videos: videosWithTranscriptions.map(video => ({
           id: video.id,
@@ -821,6 +837,7 @@ export default function BlogsPage() {
         createdAt: Timestamp.now()
       };
 
+      console.log('💾 Saving blog data to Firebase:', blogData);
       const docRef = await addDoc(collection(db, 'blogs'), blogData);
       
       const newBlogWithId: Blog = {
@@ -1221,7 +1238,9 @@ export default function BlogsPage() {
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <h2 className="text-2xl font-bold text-gray-800">{blog.title}</h2>
+                        <h2 id={`title-${blog.id}`} className="text-2xl font-bold text-gray-800">
+                          {blog.title}
+                        </h2>
                         {blog.generatedFromVideo && (
                           <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">🤖 AI Generated</span>
                         )}
@@ -1240,8 +1259,50 @@ export default function BlogsPage() {
                   </div>
                   
                   <div className="prose prose-lg max-w-none">
-                    <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                      {blog.content}
+                    <div className="text-gray-700 leading-relaxed space-y-4">
+                      {(() => {
+                                                  // If the content looks like JSON, parse it for display
+                          if (typeof blog.content === 'string' && blog.content.trim().startsWith('{')) {
+                            try {
+                              // Clean up the JSON string by removing escaped newlines and quotes
+                              let cleanedContent = blog.content
+                                .replace(/\\n/g, '\n')
+                                .replace(/\\"/g, '"')
+                                .replace(/^"/, '')
+                                .replace(/"$/, '')
+                                .replace(/[\x00-\x1F\x7F-\x9F]/g, ''); // Remove control characters
+                              
+                              // Try to fix common JSON issues
+                              cleanedContent = cleanedContent
+                                .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+                                .replace(/([^\\])"/g, '$1\\"') // Escape unescaped quotes
+                                .replace(/\\"/g, '"'); // Then unescape properly
+                              
+                              const parsed = JSON.parse(cleanedContent);
+                              console.log(parsed);
+                              // Update the blog title in state if it's different
+                              if (parsed.title && parsed.title !== blog.title) {
+                                setBlogs(prevBlogs => 
+                                  prevBlogs.map(b => 
+                                    b.id === blog.id 
+                                      ? { ...b, title: parsed.title }
+                                      : b
+                                  )
+                                );
+                              }
+                              return parsed.content || blog.content;
+                            } catch (e) {
+                              console.log('Failed to parse JSON content:', e);
+                              // Try to extract content using regex as fallback
+                              const contentMatch = blog.content.match(/"content":\s*"([^"]*(?:\\.[^"]*)*)"/);
+                              if (contentMatch) {
+                                return contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                              }
+                              return blog.content;
+                            }
+                          }
+                        return blog.content;
+                      })()}
                     </div>
                   </div>
 

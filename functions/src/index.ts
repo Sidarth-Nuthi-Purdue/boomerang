@@ -140,14 +140,14 @@ export const generateBlogFromTranscription = functions.runWith({
           content: `You are writing a diary post for a video. The audience is the two people who are in the video. Tailor it to them. Talk to them directly. Make fun of them sometimes.
             Create a continuing storyline diary post that:
             - Has a catchy, creative title that suggests it's part of an ongoing series
-            - Treats this as the NEXT chapter in an ongoing adventure/story
-            - References what happened "previously" if there are multiple videos
+            - Treats this as a chapter in an ongoing adventure/story
             - Uses a playful, conversational tone like a personal diary/vlog
             - Includes relevant excerpts as quotes
             - Adds your own witty commentary and insights. Make fun of the people in the video.
             - Creates anticipation for what might happen next
             - Is well-structured with proper paragraphs
             - Feels personal and authentic like an ongoing journey
+            - Reference the people in the video by name (Sid is the guy and Alex is the girl). Don't use "the two people" or "the two of them" or "the two of us" or "the two of them".
 
             If multiple video transcriptions are provided, treat the first as "previously" and the second as "this episode".
 
