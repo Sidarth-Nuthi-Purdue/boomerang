@@ -7,21 +7,41 @@ const groq_sdk_1 = require("groq-sdk");
 const openai_1 = require("openai");
 // Use built-in fetch in Node 18+
 admin.initializeApp();
-// Initialize clients lazily to avoid env var issues during deployment
+// Initialize clients lazily using Firestore API keys
 let groq;
 let openai;
-const getGroqClient = () => {
+const getApiKeys = async () => {
+    const db = admin.firestore();
+    const configDoc = await db.collection('config').doc('api-keys').get();
+    if (!configDoc.exists) {
+        throw new Error('API keys not found in Firestore. Please add them to config/api-keys document.');
+    }
+    const data = configDoc.data();
+    return {
+        groqApiKey: data === null || data === void 0 ? void 0 : data.groqApiKey,
+        openaiApiKey: data === null || data === void 0 ? void 0 : data.openaiApiKey
+    };
+};
+const getGroqClient = async () => {
     if (!groq) {
+        const { groqApiKey } = await getApiKeys();
+        if (!groqApiKey) {
+            throw new Error('Groq API key not found in Firestore config');
+        }
         groq = new groq_sdk_1.default({
-            apiKey: process.env.GROQ_API_KEY
+            apiKey: groqApiKey
         });
     }
     return groq;
 };
-const getOpenAIClient = () => {
+const getOpenAIClient = async () => {
     if (!openai) {
+        const { openaiApiKey } = await getApiKeys();
+        if (!openaiApiKey) {
+            throw new Error('OpenAI API key not found in Firestore config');
+        }
         openai = new openai_1.default({
-            apiKey: process.env.OPENAI_API_KEY
+            apiKey: openaiApiKey
         });
     }
     return openai;
@@ -54,7 +74,8 @@ exports.processVideoForBlog = functions.runWith({
         fs.writeFileSync(tempFilePath, buffer);
         try {
             // Use fs.createReadStream which Groq SDK expects
-            const transcription = await getGroqClient().audio.transcriptions.create({
+            const groqClient = await getGroqClient();
+            const transcription = await groqClient.audio.transcriptions.create({
                 file: fs.createReadStream(tempFilePath),
                 model: 'whisper-large-v3-turbo',
                 response_format: 'verbose_json',
@@ -93,28 +114,34 @@ exports.generateBlogFromTranscription = functions.runWith({
             throw new functions.https.HttpsError('invalid-argument', 'Missing transcriptions');
         }
         // Generate blog content using ChatGPT
-        const completion = await getOpenAIClient().chat.completions.create({
+        const openaiClient = await getOpenAIClient();
+        const completion = await openaiClient.chat.completions.create({
             model: 'gpt-4',
             messages: [
                 {
                     role: 'system',
-                    content: `You are a creative blog writer who creates engaging, episodic blog posts from video transcriptions. 
+                    content: `You are writing a diary post for a video. The audience is the two people who are in the video. Tailor it to them. Talk to them directly. Make fun of them sometimes.
           
-          Create a continuing storyline blog post that:
+          Create a continuing storyline diary post that:
           - Has a catchy, creative title that suggests it's part of an ongoing series
           - Treats this as the NEXT chapter in an ongoing adventure/story
           - References what happened "previously" if there are multiple videos
-          - Builds narrative continuity and character development
           - Uses a playful, conversational tone like a personal diary/vlog
           - Includes relevant excerpts as quotes
-          - Adds your own witty commentary and insights
+          - Adds your own witty commentary and insights. Make fun of the people in the video.
           - Creates anticipation for what might happen next
           - Is well-structured with proper paragraphs
           - Feels personal and authentic like an ongoing journey
           
           If multiple video transcriptions are provided, treat the first as "previously" and the second as "this episode".
           
-          Format the response as JSON with "title" and "content" fields.`
+          Return ONLY a JSON object with exactly this format:
+          {
+            "title": "Your creative title here",
+            "content": "Your blog post content here with proper paragraph breaks using \\n\\n between paragraphs"
+          }
+          
+          Make sure the content uses \\n\\n to separate paragraphs for proper formatting.`
                 },
                 {
                     role: 'user',
@@ -131,14 +158,37 @@ exports.generateBlogFromTranscription = functions.runWith({
         // Parse the JSON response
         let blogData;
         try {
-            blogData = JSON.parse(result);
+            // Clean up the result in case there are extra characters
+            const cleanResult = result.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            blogData = JSON.parse(cleanResult);
+            // Ensure we have the expected structure
+            if (!blogData.title || !blogData.content) {
+                throw new Error('Invalid JSON structure');
+            }
         }
         catch (parseError) {
-            // Fallback if JSON parsing fails
-            blogData = {
-                title: 'Video Blog Post',
-                content: result
-            };
+            console.log('JSON parsing failed, attempting to extract content:', parseError);
+            // Try to extract JSON from the response if it's wrapped in other text
+            const jsonMatch = result.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    blogData = JSON.parse(jsonMatch[0]);
+                }
+                catch (secondParseError) {
+                    // Final fallback if JSON parsing completely fails
+                    blogData = {
+                        title: 'Generated Blog Post',
+                        content: result
+                    };
+                }
+            }
+            else {
+                // Final fallback if JSON parsing completely fails
+                blogData = {
+                    title: 'Generated Blog Post',
+                    content: result
+                };
+            }
         }
         return {
             success: true,

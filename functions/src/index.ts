@@ -6,23 +6,46 @@ import OpenAI from 'openai';
 
 admin.initializeApp();
 
-// Initialize clients lazily to avoid env var issues during deployment
+// Initialize clients lazily using Firestore API keys
 let groq: Groq;
 let openai: OpenAI;
 
-const getGroqClient = () => {
+const getApiKeys = async () => {
+  const db = admin.firestore();
+  const configDoc = await db.collection('config').doc('api-keys').get();
+  
+  if (!configDoc.exists) {
+    throw new Error('API keys not found in Firestore. Please add them to config/api-keys document.');
+  }
+  
+  const data = configDoc.data();
+  return {
+    groqApiKey: data?.groqApiKey,
+    openaiApiKey: data?.openaiApiKey
+  };
+};
+
+const getGroqClient = async () => {
   if (!groq) {
+    const { groqApiKey } = await getApiKeys();
+    if (!groqApiKey) {
+      throw new Error('Groq API key not found in Firestore config');
+    }
     groq = new Groq({
-      apiKey: process.env.GROQ_API_KEY
+      apiKey: groqApiKey
     });
   }
   return groq;
 };
 
-const getOpenAIClient = () => {
+const getOpenAIClient = async () => {
   if (!openai) {
+    const { openaiApiKey } = await getApiKeys();
+    if (!openaiApiKey) {
+      throw new Error('OpenAI API key not found in Firestore config');
+    }
     openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: openaiApiKey
     });
   }
   return openai;
@@ -64,7 +87,8 @@ export const processVideoForBlog = functions.runWith({
     
     try {
       // Use fs.createReadStream which Groq SDK expects
-      const transcription = await getGroqClient().audio.transcriptions.create({
+      const groqClient = await getGroqClient();
+      const transcription = await groqClient.audio.transcriptions.create({
         file: fs.createReadStream(tempFilePath),
         model: 'whisper-large-v3-turbo',
         response_format: 'verbose_json',
@@ -107,7 +131,8 @@ export const generateBlogFromTranscription = functions.runWith({
     }
 
     // Generate blog content using ChatGPT
-    const completion = await getOpenAIClient().chat.completions.create({
+    const openaiClient = await getOpenAIClient();
+    const completion = await openaiClient.chat.completions.create({
       model: 'gpt-4',
       messages: [
         {
@@ -128,7 +153,13 @@ export const generateBlogFromTranscription = functions.runWith({
           
           If multiple video transcriptions are provided, treat the first as "previously" and the second as "this episode".
           
-          Format the response as JSON with "title" and "content" fields.`
+          Return ONLY a JSON object with exactly this format:
+          {
+            "title": "Your creative title here",
+            "content": "Your blog post content here with proper paragraph breaks using \\n\\n between paragraphs"
+          }
+          
+          Make sure the content uses \\n\\n to separate paragraphs for proper formatting.`
         },
         {
           role: 'user',
@@ -147,13 +178,36 @@ export const generateBlogFromTranscription = functions.runWith({
     // Parse the JSON response
     let blogData;
     try {
-      blogData = JSON.parse(result);
+      // Clean up the result in case there are extra characters
+      const cleanResult = result.trim().replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      blogData = JSON.parse(cleanResult);
+      
+      // Ensure we have the expected structure
+      if (!blogData.title || !blogData.content) {
+        throw new Error('Invalid JSON structure');
+      }
     } catch (parseError) {
-      // Fallback if JSON parsing fails
-      blogData = {
-        title: 'Video Blog Post',
-        content: result
-      };
+      console.log('JSON parsing failed, attempting to extract content:', parseError);
+      
+      // Try to extract JSON from the response if it's wrapped in other text
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          blogData = JSON.parse(jsonMatch[0]);
+        } catch (secondParseError) {
+          // Final fallback if JSON parsing completely fails
+          blogData = {
+            title: 'Generated Blog Post',
+            content: result
+          };
+        }
+      } else {
+        // Final fallback if JSON parsing completely fails
+        blogData = {
+          title: 'Generated Blog Post', 
+          content: result
+        };
+      }
     }
 
     return {
