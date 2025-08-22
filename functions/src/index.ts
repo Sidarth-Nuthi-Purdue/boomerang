@@ -138,9 +138,9 @@ export const generateBlogFromTranscription = functions.runWith({
         {
           role: 'system',
           content: `You are writing a diary post for a video. The audience is the two people who are in the video. Tailor it to them. Talk to them directly. Make fun of them sometimes.
+          The multiple transcriptions are from the same post, so they are all part of the same story.
             Create a continuing storyline diary post that:
             - Has a catchy, creative title that suggests it's part of an ongoing series
-            - Treats this as a chapter in an ongoing adventure/story
             - Uses a playful, conversational tone like a personal diary/vlog
             - Includes relevant excerpts as quotes
             - Adds your own witty commentary and insights. Make fun of the people in the video.
@@ -148,8 +148,7 @@ export const generateBlogFromTranscription = functions.runWith({
             - Is well-structured with proper paragraphs
             - Feels personal and authentic like an ongoing journey
             - Reference the people in the video by name (Sid is the guy and Alex is the girl). Don't use "the two people" or "the two of them" or "the two of us" or "the two of them".
-
-            If multiple video transcriptions are provided, treat the first as "previously" and the second as "this episode".
+            - Add paragraphs to the content to make it more readable.
 
             Return ONLY a JSON object with exactly this format:
             {
